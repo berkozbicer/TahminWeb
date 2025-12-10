@@ -1,0 +1,12 @@
+[Unit]
+Description=Laravel Horizon
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+ExecStart=/usr/bin/php /var/www/at-yarislari-tahmin/artisan horizon
+
+[Install]
+WantedBy=multi-user.target
