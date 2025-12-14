@@ -28,6 +28,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // ✅ Son giriş zamanını kaydet
+        try {
+            $request->user()->update([
+                'last_login_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Log but don't fail login
+            \Log::warning('Failed to update last_login_at', [
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

@@ -31,6 +31,30 @@ class PaymentController extends Controller
                 return redirect()->route('login')->with('error', 'Ödeme için giriş yapmalısınız.');
             }
 
+            // ✅ E-posta doğrulaması kontrolü
+            if (!$user->hasVerifiedEmail()) {
+                return redirect()->route('verification.notice')
+                    ->with('error', 'Ödeme yapabilmek için önce e-posta adresinizi doğrulamalısınız.');
+            }
+
+            // ✅ Plan aktif mi kontrolü
+            if (!$plan->is_active) {
+                return redirect()->route('subscriptions.index')
+                    ->with('error', 'Bu plan şu anda aktif değil.');
+            }
+
+            // ✅ Zaten aktif abonelik var mı?
+            $existingSubscription = $user->subscriptions()
+                ->where('subscription_plan_id', $plan->id)
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->where('expires_at', '>', now())
+                ->first();
+
+            if ($existingSubscription) {
+                return redirect()->route('subscriptions.index')
+                    ->with('info', 'Bu plana zaten aktif bir aboneliğiniz var.');
+            }
+
             // Create pending payment log
             $payment = PaymentLog::create([
                 'user_id' => $user->id,
@@ -43,18 +67,18 @@ class PaymentController extends Controller
             ]);
 
             // merchant_oid used by PayTR - keep unique per payment
-            $merchant_oid = 'ORD' . $payment->id . '-' . uniqid();
+            $merchant_oid = 'ORD' . $payment->id . '-' . time() . '-' . uniqid();
 
             // Prepare user basket
             $basket = [[
                 $plan->name,
-                (float) $plan->price,
+                (float)$plan->price,
                 1
             ]];
             $user_basket = base64_encode(json_encode($basket));
 
             // PayTR amount expects kuruş (amount * 100)
-            $payment_amount = (string) round($plan->price * 100);
+            $payment_amount = (string)round($plan->price * 100);
 
             $email = $user->email;
 
@@ -62,18 +86,18 @@ class PaymentController extends Controller
 
             // Request token from PayTR
             $post = [
-                'merchant_id' => env('PAYTR_MERCHANT_ID'),
+                'merchant_id' => config('services.paytr.merchant_id'),
                 'user_ip' => $request->ip(),
                 'merchant_oid' => $merchant_oid,
                 'email' => $email,
                 'payment_amount' => $payment_amount,
                 'paytr_token' => $paytr_token,
                 'user_basket' => $user_basket,
-                'debug_on' => 0,
+                'debug_on' => config('services.paytr.debug', 0),
                 'no_installment' => 0,
                 'max_installment' => 0,
                 'currency' => 'TL',
-                'test_mode' => env('PAYTR_TEST_MODE', 1),
+                'test_mode' => config('services.paytr.test_mode', 1),
                 'success_url' => route('subscriptions.index', absolute: true),
                 'fail_url' => route('subscriptions.index', absolute: true),
             ];
@@ -81,7 +105,17 @@ class PaymentController extends Controller
             $res = $this->paytr->getToken($post);
 
             if (!isset($res['status']) || $res['status'] !== 'success') {
-                Log::error('PayTR get-token failed', ['res' => $res]);
+                Log::error('PayTR get-token failed', ['res' => $res, 'user_id' => $user->id]);
+
+                // ✅ Hatalı ödemeyi logla
+                $payment->update([
+                    'status' => PaymentLog::STATUS_FAILED,
+                    'payment_data' => array_merge($payment->payment_data ?? [], [
+                        'error' => 'Token alınamadı',
+                        'paytr_response' => $res,
+                    ]),
+                ]);
+
                 return back()->with('error', 'Ödeme başlatılamadı. Lütfen daha sonra tekrar deneyin.');
             }
 
@@ -93,17 +127,23 @@ class PaymentController extends Controller
                 'paytr_token' => $token,
                 'paytr_response' => $res,
                 'plan_id' => $plan->id,
+                'user_ip' => $request->ip(),
+                'initiated_at' => now()->toDateTimeString(),
             ]);
             $payment->transaction_id = $merchant_oid;
             $payment->save();
 
             // Show form to submit to PayTR iframe
             return view('paytr.form', [
-                'merchant_id' => env('PAYTR_MERCHANT_ID'),
+                'merchant_id' => config('services.paytr.merchant_id'),
                 'token' => $token,
             ]);
         } catch (\Throwable $e) {
-            Log::error('PaymentController::initialize error: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('PaymentController::initialize error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'user_id' => $user->id ?? null,
+                'plan_id' => $plan->id ?? null,
+            ]);
             return back()->with('error', 'İşlem sırasında beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
         }
     }
@@ -116,7 +156,7 @@ class PaymentController extends Controller
         try {
             $payload = $request->all();
 
-            Log::info('PayTR callback received', $payload);
+            Log::info('PayTR callback received', ['payload_keys' => array_keys($payload)]);
 
             // verify signature
             $valid = $this->paytr->verifyCallback($payload);
@@ -137,8 +177,17 @@ class PaymentController extends Controller
                 return response('OK', 200);
             }
 
+            // ✅ Zaten işlenmiş mi kontrolü (idempotency)
+            if ($payment->status === PaymentLog::STATUS_COMPLETED) {
+                Log::info('PayTR callback: payment already completed', ['payment_id' => $payment->id]);
+                return response('OK', 200);
+            }
+
             // Update payment data
-            $payment->payment_data = array_merge($payment->payment_data ?? [], $payload);
+            $payment->payment_data = array_merge($payment->payment_data ?? [], [
+                'callback_received_at' => now()->toDateTimeString(),
+                'callback_data' => $payload,
+            ]);
 
             if ($status === 'success') {
                 $payment->status = PaymentLog::STATUS_COMPLETED;
@@ -147,28 +196,51 @@ class PaymentController extends Controller
                 $planId = $payment->payment_data['plan_id'] ?? null;
                 if ($planId) {
                     try {
+                        // ✅ Eski aktif abonelikleri iptal et
+                        Subscription::where('user_id', $payment->user_id)
+                            ->where('status', Subscription::STATUS_ACTIVE)
+                            ->update(['status' => Subscription::STATUS_CANCELLED, 'cancelled_at' => now()]);
+
+                        $plan = SubscriptionPlan::find($planId);
+
                         $subscription = Subscription::create([
                             'user_id' => $payment->user_id,
                             'subscription_plan_id' => $planId,
                             'status' => Subscription::STATUS_ACTIVE,
                             'started_at' => now(),
-                            'expires_at' => now()->addDays(30),
+                            'expires_at' => now()->addDays($plan->duration_days ?? 30),
                         ]);
+
                         $payment->subscription_id = $subscription->id;
+
+                        Log::info('Subscription created successfully', [
+                            'subscription_id' => $subscription->id,
+                            'payment_id' => $payment->id,
+                            'user_id' => $payment->user_id,
+                        ]);
                     } catch (\Throwable $e) {
-                        Log::error('Creating subscription on PayTR callback failed: ' . $e->getMessage());
+                        Log::error('Creating subscription on PayTR callback failed: ' . $e->getMessage(), [
+                            'exception' => $e,
+                            'payment_id' => $payment->id,
+                        ]);
                     }
                 }
             } else {
                 $payment->status = PaymentLog::STATUS_FAILED;
+                $payment->payment_data = array_merge($payment->payment_data ?? [], [
+                    'failure_reason' => $payload['failed_reason_msg'] ?? 'Bilinmeyen hata',
+                ]);
             }
 
             $payment->save();
 
             return response('OK', 200);
         } catch (\Throwable $e) {
-            Log::error('PaymentController::callback error: ' . $e->getMessage(), ['exception' => $e]);
-            // Always return 200 to PayTR so they don't retry aggressively; details are logged
+            Log::error('PaymentController::callback error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'payload' => $request->all(),
+            ]);
+            // Always return 200 to PayTR so they don't retry aggressively
             return response('OK', 200);
         }
     }
@@ -180,23 +252,40 @@ class PaymentController extends Controller
     public function simulate(Request $request, PaymentLog $payment)
     {
         $user = $request->user();
-        if (! $user || ! $user->isAdmin()) {
+        if (!$user || !$user->isAdmin()) {
             return abort(403, 'Yetkiniz yok.');
         }
 
         try {
-            $payment->payment_data = array_merge($payment->payment_data ?? [], ['simulated_by' => $user->id, 'simulated_at' => now()->toDateTimeString()]);
+            // ✅ Zaten tamamlanmış mı?
+            if ($payment->status === PaymentLog::STATUS_COMPLETED) {
+                return back()->with('info', 'Bu ödeme zaten tamamlanmış.');
+            }
+
+            $payment->payment_data = array_merge($payment->payment_data ?? [], [
+                'simulated_by' => $user->id,
+                'simulated_at' => now()->toDateTimeString(),
+                'simulation_note' => 'Admin tarafından test için simüle edildi.',
+            ]);
             $payment->status = PaymentLog::STATUS_COMPLETED;
 
             $planId = $payment->payment_data['plan_id'] ?? null;
             if ($planId) {
+                // ✅ Eski abonelikleri iptal et
+                Subscription::where('user_id', $payment->user_id)
+                    ->where('status', Subscription::STATUS_ACTIVE)
+                    ->update(['status' => Subscription::STATUS_CANCELLED, 'cancelled_at' => now()]);
+
+                $plan = SubscriptionPlan::find($planId);
+
                 $subscription = Subscription::create([
                     'user_id' => $payment->user_id,
                     'subscription_plan_id' => $planId,
                     'status' => Subscription::STATUS_ACTIVE,
                     'started_at' => now(),
-                    'expires_at' => now()->addDays(30),
+                    'expires_at' => now()->addDays($plan->duration_days ?? 30),
                 ]);
+
                 $payment->subscription_id = $subscription->id;
             }
 
