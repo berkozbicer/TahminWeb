@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -10,29 +12,24 @@ class SecurityHeaders
 {
     /**
      * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
-        // Security headers ekle
+        // Response bir BinaryFileResponse olabilir, headers özelliği her zaman vardır.
+        // Güvenlik Başlıklarını Ekle
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('X-Frame-Options', 'DENY'); // Iframe içinde açılmayı engeller
         $response->headers->set('X-XSS-Protection', '1; mode=block');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        
-        // HTTPS kullanılıyorsa HSTS header ekle
-        if ($request->secure() || config('app.env') === 'production') {
+
+        // HTTPS Zorunluluğu (HSTS)
+        // Production ortamında veya güvenli bağlantıdaysa ekle
+        if ($request->secure() || app()->environment('production')) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
-
-        // Content Security Policy (CSP) - İhtiyaca göre özelleştirilebilir
-        // $response->headers->set('Content-Security-Policy', "default-src 'self'");
 
         return $response;
     }
 }
-
-

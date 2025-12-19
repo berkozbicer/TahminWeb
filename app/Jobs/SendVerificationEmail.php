@@ -1,14 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use App\Models\User;
+use Throwable;
 
 class SendVerificationEmail implements ShouldQueue
 {
@@ -17,12 +20,12 @@ class SendVerificationEmail implements ShouldQueue
     public User $user;
 
     /**
-     * Number of times the job may be attempted.
+     * Başarısız olursa en fazla kaç kere denensin?
      */
     public int $tries = 3;
 
     /**
-     * Number of seconds to wait before retrying the job.
+     * Hata aldığında kaç saniye bekleyip tekrar denesin?
      */
     public int $backoff = 60;
 
@@ -40,11 +43,23 @@ class SendVerificationEmail implements ShouldQueue
     public function handle(): void
     {
         try {
+            // Kullanıcı silinmişse işlemi iptal et (Boşa kaynak harcama)
+            if (!$this->user) {
+                Log::warning("Doğrulama maili atılacak kullanıcı bulunamadı.");
+                return;
+            }
+
             $this->user->sendEmailVerificationNotification();
-        } catch (\Throwable $e) {
-            // Log and let the queue worker handle retries according to settings
-            report($e);
+
+            Log::info("Doğrulama maili kuyruktan gönderildi. User ID: " . $this->user->id);
+
+        } catch (Throwable $e) {
+            // Detaylı loglama
             Log::error('Verification email job failed for user id ' . $this->user->id . ': ' . $e->getMessage());
+
+            // ÖNEMLİ: Hatayı tekrar fırlatıyoruz.
+            // Bunu yapmazsak Laravel işin başarıyla bittiğini sanır ve tekrar denemez!
+            throw $e;
         }
     }
 }

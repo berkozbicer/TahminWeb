@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -14,16 +16,26 @@ class EmailVerificationNotificationController extends Controller
     public function store(Request $request): RedirectResponse
     {
         try {
-            if ($request->user()->hasVerifiedEmail()) {
-                return redirect()->intended(route('dashboard', absolute: false));
+            /** @var \App\Models\User $user */
+            $user = $request->user();
+
+            // Eğer zaten doğrulanmışsa, mantıklı yere yönlendir
+            if ($user->hasVerifiedEmail()) {
+                $redirectUrl = $user->isAdmin()
+                    ? '/admin'
+                    : route('dashboard', absolute: false);
+
+                return redirect()->intended($redirectUrl);
             }
 
-            $request->user()->sendEmailVerificationNotification();
+            $user->sendEmailVerificationNotification();
 
             return back()->with('status', 'verification-link-sent');
         } catch (\Throwable $e) {
+            // Hataları loglayalım (Mail sunucusu hatası vb.)
             report($e);
-            return back()->with('error', 'Doğrulama e-postası gönderilirken hata oluştu.');
+
+            return back()->with('error', 'Doğrulama e-postası gönderilirken bir hata oluştu. Lütfen biraz bekleyip tekrar deneyin.');
         }
     }
 }

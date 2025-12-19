@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,33 +32,21 @@ class PaymentLog extends Model
         'payment_data' => 'array',
     ];
 
-    /**
-     * Ödemeyi yapan kullanıcı
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * İlgili abonelik (opsiyonel)
-     */
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
     }
 
-    /**
-     * Scope: başarılı ödemeler
-     */
     public function scopeCompleted($query)
     {
         return $query->where('status', self::STATUS_COMPLETED);
     }
 
-    /**
-     * Scope: son ödemeler
-     */
     public function scopeRecent($query, int $limit = 10)
     {
         return $query->orderByDesc('id')->limit($limit);

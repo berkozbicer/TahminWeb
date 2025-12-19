@@ -1,19 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Profile\DeleteAccountRequest;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\UserService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
+use Throwable;
 
 class ProfileController extends Controller
 {
-    /**
-     * Display the user's profile form.
-     */
+    public function __construct(
+        protected UserService $userService
+    )
+    {
+    }
+
     public function edit(Request $request): View
     {
         return view('profile.edit', [
@@ -21,49 +29,45 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update the user's profile information.
-     */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         try {
-            $request->user()->fill($request->validated());
+            /** @var \App\Models\User $user */
+            $user = $request->user();
 
-            if ($request->user()->isDirty('email')) {
-                $request->user()->email_verified_at = null;
-            }
-
-            $request->user()->save();
+            $this->userService->updateProfile($user, $request->validated());
 
             return Redirect::route('profile.edit')->with('status', 'profile-updated');
-        } catch (\Throwable $e) {
-            \Log::error('ProfileController::update error: ' . $e->getMessage(), ['exception' => $e]);
-            return Redirect::route('profile.edit')->with('error', 'Profil güncellenirken bir hata oluştu. Lütfen tekrar deneyin.');
+
+        } catch (Throwable $e) {
+            \Log::error('Profil güncelleme hatası: ' . $e->getMessage(), ['user_id' => $request->user()?->id]);
+
+            return Redirect::route('profile.edit')
+                ->with('error', 'Profil güncellenirken bir hata oluştu.');
         }
     }
 
-    /**
-     * Delete the user's account.
-     */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(DeleteAccountRequest $request): RedirectResponse
     {
-        $request->validateWithBag('userDeletion', [
-            'password' => ['required', 'current_password'],
-        ]);
+
         try {
+            /** @var \App\Models\User $user */
             $user = $request->user();
 
             Auth::logout();
 
-            $user->delete();
+            $this->userService->deleteAccount($user);
 
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
             return Redirect::to('/');
-        } catch (\Throwable $e) {
-            \Log::error('ProfileController::destroy error: ' . $e->getMessage(), ['exception' => $e]);
-            return Redirect::route('profile.edit')->with('error', 'Hesap silinirken bir hata oluştu. Lütfen destek ile iletişime geçin.');
+
+        } catch (Throwable $e) {
+            \Log::error('Hesap silme hatası: ' . $e->getMessage(), ['exception' => $e]);
+
+            return Redirect::route('profile.edit')
+                ->with('error', 'Hesap silinirken bir sorun oluştu.');
         }
     }
 }

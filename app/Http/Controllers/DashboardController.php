@@ -1,27 +1,32 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-use App\Models\SubscriptionPlan;
+use App\Repositories\SubscriptionPlanRepository;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        protected SubscriptionPlanRepository $planRepository
+    )
+    {
+    }
+
     /**
-     * /panel  -> Kullanıcı paneli
+     * /panel -> Kullanıcı paneli
      */
     public function index(Request $request): View
     {
+        /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // User modelinde bu ilişki tanımlı olmalı!
         $activeSubscription = $user->activeSubscription;
 
-        // Kullanıcıya yükseltme teklifi sunmak için planları çekiyoruz (cache ile optimize edildi)
-        $plans = cache()->remember('subscription_plans.active', 3600, function () {
-            return SubscriptionPlan::active()->orderBy('price')->get();
-        });
+        $plans = $this->planRepository->getActivePlans();
 
         return view('dashboard', compact(
             'user',

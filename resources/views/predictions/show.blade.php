@@ -1,116 +1,111 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="max-w-4xl mx-auto px-4 py-8">
-        <!-- Breadcrumb -->
-        <div class="mb-6 text-sm text-gray-600">
-            <a href="/" class="hover:text-primary">Ana Sayfa</a> /
-            <a href="/tahminler" class="hover:text-primary">Tahminler</a> /
-            <span class="text-gray-900">{{ $prediction->hippodrome->name }}</span>
-        </div>
+    <div class="max-w-5xl mx-auto px-4 py-8">
+        <nav class="flex mb-6 text-sm text-gray-500" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li class="inline-flex items-center">
+                    <a href="/" class="hover:text-primary transition">Ana Sayfa</a>
+                </li>
+                <li><i class="fas fa-chevron-right text-xs mx-2"></i></li>
+                <li>
+                    <a href="{{ route('predictions.index') }}" class="hover:text-primary transition">Tahminler</a>
+                </li>
+                <li><i class="fas fa-chevron-right text-xs mx-2"></i></li>
+                <li aria-current="page"
+                    class="text-gray-900 font-semibold truncate max-w-xs">{{ $prediction->hippodrome->name }}</li>
+            </ol>
+        </nav>
 
-        <!-- Ana Kart -->
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-secondary to-gray-800 text-white p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h1 class="text-3xl font-bold mb-2">{{ $prediction->race_title ?? $prediction->race_number . '. Koşu' }}</h1>
-                        <p class="text-gray-300">{{ $prediction->hippodrome->name }}
-                            - {{ $prediction->hippodrome->city }}</p>
-                    </div>
-                    <span
-                        class="px-4 py-2 rounded-full text-sm font-bold {{ $prediction->access_level === 'premium' ? 'bg-red-600' : 'bg-gray-600' }}">
-                    {{ $prediction->access_level === 'premium' ? 'PREMIUM' : 'STANDART' }}
-                </span>
-                </div>
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden mb-8">
+            <div class="bg-secondary text-white p-6 md:p-8 relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                        <div>
+                            <div class="flex items-center gap-3 mb-2">
+                                <h1 class="text-3xl font-bold">{{ $prediction->race_title ?? $prediction->race_number . '. Koşu' }}</h1>
+                                <span
+                                    class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider {{ $prediction->access_level === 'premium' ? 'bg-primary text-secondary' : 'bg-gray-700 text-gray-200' }}">
+                                    {{ $prediction->access_level === 'premium' ? 'PREMIUM' : 'STANDART' }}
+                                </span>
+                            </div>
+                            <p class="text-gray-300 flex items-center">
+                                <i class="fas fa-map-marker-alt mr-2"></i> {{ $prediction->hippodrome->name }}
+                                - {{ $prediction->hippodrome->city }}
+                            </p>
+                        </div>
 
-                <div class="flex space-x-6 text-sm">
-
-                    <div>
-                        <span class="text-gray-400">Tarih:</span>
-                        <span class="font-semibold">
-                            {{ $prediction->race_date
-                            ? \Illuminate\Support\Carbon::parse($prediction->race_date)->format('d.m.Y')
-                            : '-' }}
-                        </span>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Saat:</span>
-                        <span class="font-semibold">
-                            {{ !empty($prediction->race_time) && $prediction->race_time !== '-'
-                            ? \Illuminate\Support\Carbon::parse($prediction->race_time)->format('H:i')
-                            : '-' }}
-                        </span>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Koşu No:</span>
-                        <span class="font-semibold">{{ $prediction->race_number }}</span>
+                        <div class="bg-white/10 backdrop-blur-sm rounded-lg p-3 text-center min-w-[100px]">
+                            <div
+                                class="text-2xl font-bold">{{ $prediction->race_time ? \Illuminate\Support\Carbon::parse($prediction->race_time)->format('H:i') : '--:--' }}</div>
+                            <div
+                                class="text-xs text-gray-300 uppercase">{{ $prediction->race_date ? \Illuminate\Support\Carbon::parse($prediction->race_date)->format('d.m.Y') : '-' }}</div>
+                        </div>
                     </div>
                 </div>
+                <div
+                    class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full transform translate-x-1/2 -translate-y-1/2"></div>
             </div>
 
-            <!-- İçerik -->
-            <div class="p-6">
+            <div class="p-6 md:p-8">
                 @if($canAccess)
-                    <!-- Basit Tahmin -->
                     @if($prediction->basic_prediction)
-                        <div class="mb-8">
-                            <h2 class="text-2xl font-bold text-secondary mb-4 flex items-center">
+                        <div class="mb-10">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                 <span
-                                    class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">1</span>
-                                Genel Tahmin
-                            </h2>
-                            <div class="bg-gray-50 rounded-lg p-6">
-                                <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ $prediction->basic_prediction }}</p>
-                            </div>
-                        </div>
-                    @endif
-
-                    <!-- Detaylı Analiz (Sadece Premium) -->
-                    @if($prediction->detailed_analysis && $prediction->isPremiumOnly())
-                        <div class="mb-8">
-                            <h2 class="text-2xl font-bold text-secondary mb-4 flex items-center">
-                                <span
-                                    class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">2</span>
-                                Detaylı Analiz
-                                <span class="ml-3 px-3 py-1 bg-red-100 text-primary text-xs font-semibold rounded-full">PREMIUM</span>
+                                    class="bg-secondary text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm">1</span>
+                                Genel Değerlendirme
                             </h2>
                             <div
-                                class="bg-gradient-to-br from-red-50 to-white rounded-lg p-6 border-l-4 border-primary">
-                                <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ $prediction->detailed_analysis }}</p>
+                                class="bg-gray-50 rounded-xl p-6 border border-gray-100 text-gray-700 leading-relaxed whitespace-pre-line shadow-sm">
+                                {{ $prediction->basic_prediction }}
                             </div>
                         </div>
                     @endif
 
-                    <!-- Banko İpuçları (Sadece Premium) -->
-                    @if($prediction->banker_tips && $prediction->isPremiumOnly())
-                        <div class="mb-8">
-                            <h2 class="text-2xl font-bold text-secondary mb-4 flex items-center">
+                    @if($prediction->detailed_analysis && $prediction->isPremiumOnly())
+                        <div class="mb-10">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                 <span
-                                    class="bg-yellow-500 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">★</span>
-                                Banko İpuçları
-                                <span class="ml-3 px-3 py-1 bg-red-100 text-primary text-xs font-semibold rounded-full">PREMIUM</span>
+                                    class="bg-primary text-secondary w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm"><i
+                                        class="fas fa-star"></i></span>
+                                Detaylı Analiz
+                                <span
+                                    class="ml-3 px-2 py-0.5 bg-primary/20 text-primary text-[10px] uppercase font-bold rounded">Premium</span>
                             </h2>
-                            <div class="bg-yellow-50 rounded-lg p-6 border-l-4 border-yellow-500">
-                                <p class="text-gray-700 leading-relaxed whitespace-pre-line font-semibold">{{ $prediction->banker_tips }}</p>
+                            <div
+                                class="bg-gradient-to-br from-yellow-50 to-white rounded-xl p-6 border border-yellow-100 text-gray-800 leading-relaxed whitespace-pre-line shadow-sm">
+                                {{ $prediction->detailed_analysis }}
                             </div>
                         </div>
                     @endif
 
-                    <!-- İstatistikler -->
+                    @if($prediction->banker_tips && $prediction->isPremiumOnly())
+                        <div class="mb-10">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <span
+                                    class="bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm"><i
+                                        class="fas fa-fire"></i></span>
+                                Banko & Sürprizler
+                            </h2>
+                            <div
+                                class="bg-red-50 rounded-xl p-6 border-l-4 border-red-500 text-gray-800 leading-relaxed whitespace-pre-line font-medium">
+                                {{ $prediction->banker_tips }}
+                            </div>
+                        </div>
+                    @endif
+
                     @if($prediction->statistics && count($prediction->statistics) > 0)
                         <div class="mb-8">
-                            <h2 class="text-2xl font-bold text-secondary mb-4 flex items-center">
-                                <span
-                                    class="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">📊</span>
-                                İstatistikler
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-chart-pie mr-3 text-gray-400"></i> İstatistikler
                             </h2>
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                 @foreach($prediction->statistics as $key => $value)
-                                    <div class="bg-gray-50 rounded-lg p-4">
+                                    <div
+                                        class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-center hover:shadow-md transition">
                                         <div
-                                            class="text-sm text-gray-600 mb-1">{{ ucfirst(str_replace('_', ' ', $key)) }}</div>
+                                            class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ ucfirst(str_replace('_', ' ', $key)) }}</div>
                                         <div class="text-lg font-bold text-secondary">{{ $value }}</div>
                                     </div>
                                 @endforeach
@@ -118,71 +113,92 @@
                         </div>
                     @endif
 
-                    <!-- Sonuç (Eğer varsa) -->
                     @if($prediction->winning_horse)
-                        <div class="bg-green-50 border-l-4 border-green-500 rounded-lg p-6">
-                            <h3 class="text-xl font-bold text-green-800 mb-2">🏆 Yarış Sonucu</h3>
-                            <p class="text-green-700">
-                                <strong>Kazanan:</strong> {{ $prediction->winning_horse }}
-                                @if($prediction->winning_odds)
-                                    <span class="ml-4"><strong>Oran:</strong> {{ $prediction->winning_odds }}</span>
-                                @endif
-                            </p>
+                        <div
+                            class="mt-8 bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-green-800 mb-1"><i
+                                        class="fas fa-flag-checkered mr-2"></i>Yarış Sonucu</h3>
+                                <p class="text-green-700">
+                                    Kazanan: <strong>{{ $prediction->winning_horse }}</strong>
+                                    @if($prediction->winning_odds)
+                                        <span class="opacity-75 mx-2">|</span> Oran:
+                                        <strong>{{ $prediction->winning_odds }}</strong>
+                                    @endif
+                                </p>
+                            </div>
                             @if($prediction->prediction_result === 'won')
-                                <span class="inline-block mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-bold">✓ TAHMİN TUTTU!</span>
+                                <div
+                                    class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold shadow-sm animate-pulse">
+                                    ✓ TAHMİN TUTTU
+                                </div>
+                            @elseif($prediction->prediction_result === 'lost')
+                                <div class="bg-red-500 text-white px-6 py-2 rounded-lg font-bold shadow-sm">
+                                    ✗ TUTMADI
+                                </div>
                             @endif
                         </div>
                     @endif
 
                 @else
-                    <!-- Erişim Yok -->
-                    <div class="text-center py-12">
+                    <div class="py-12 text-center">
+                        <div class="inline-block p-4 rounded-full bg-gray-100 mb-4">
+                            <i class="fas fa-lock text-4xl text-gray-400"></i>
+                        </div>
+
                         @if($needsUpgrade)
-                            <div class="bg-red-50 rounded-xl p-8 max-w-2xl mx-auto">
-                                <div class="text-6xl mb-4">🔒</div>
-                                <h2 class="text-3xl font-bold text-secondary mb-4">Premium İçerik</h2>
-                                <p class="text-gray-700 mb-6">
-                                    Bu detaylı analiz ve banko ipuçları sadece <strong>Premium</strong> üyelere özeldir.
-                                </p>
-                                <a href="{{ route('subscriptions.upgrade') }}"
-                                   class="inline-block bg-primary hover:bg-red-700 text-white px-8 py-4 rounded-lg font-bold text-lg transition transform hover:scale-105">
-                                    Premium'a Yükselt →
-                                </a>
-                            </div>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-2">Bu İçerik Premium Üyelere Özeldir</h2>
+                            <p class="text-gray-500 max-w-lg mx-auto mb-8">
+                                Bu koşuya ait detaylı analizleri, banko tahminleri ve özel istatistikleri görüntülemek
+                                için hesabınızı yükseltin.
+                            </p>
+                            <a href="{{ route('subscriptions.upgrade') }}"
+                               class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-secondary bg-primary hover:bg-yellow-400 shadow-lg transition transform hover:scale-105">
+                                <i class="fas fa-crown mr-2"></i> Premium'a Geç
+                            </a>
                         @else
-                            <div class="bg-gray-50 rounded-xl p-8 max-w-2xl mx-auto">
-                                <div class="text-6xl mb-4">🔐</div>
-                                <h2 class="text-3xl font-bold text-secondary mb-4">Abonelik Gerekli</h2>
-                                <p class="text-gray-700 mb-6">
-                                    Bu tahminleri görüntülemek için aktif bir aboneliğiniz olmalıdır.
-                                </p>
-                                <a href="{{ route('subscriptions.index') }}"
-                                   class="inline-block bg-primary hover:bg-red-700 text-white px-8 py-4 rounded-lg font-bold text-lg transition transform hover:scale-105">
-                                    Abonelik Paketlerini İncele →
-                                </a>
-                            </div>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-2">Abonelik Gerekli</h2>
+                            <p class="text-gray-500 max-w-lg mx-auto mb-8">
+                                Profesyonel tahminleri görüntülemek için aktif bir aboneliğiniz olmalıdır. Hemen
+                                paketlerimizi inceleyin.
+                            </p>
+                            <a href="{{ route('subscriptions.index') }}"
+                               class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-secondary hover:bg-green-800 shadow-lg transition transform hover:scale-105">
+                                Paketleri İncele
+                            </a>
                         @endif
+                    </div>
+                    <div class="mt-8 space-y-4 opacity-30 select-none filter blur-sm pointer-events-none"
+                         aria-hidden="true">
+                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div class="h-4 bg-gray-200 rounded w-full"></div>
+                        <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                        <div class="h-32 bg-gray-100 rounded-xl mt-4"></div>
                     </div>
                 @endif
             </div>
         </div>
 
-        <!-- Diğer Tahminler -->
-        <div class="mt-8">
-            <h3 class="text-2xl font-bold text-secondary mb-4">Diğer Tahminler</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                @foreach($relatedPredictions as $related)
-                    <a href="{{ route('predictions.show', $related) }}"
-                       class="block bg-white rounded-lg shadow hover:shadow-lg transition p-4">
-                        <div class="font-bold text-secondary">{{ $related->hippodrome->name }}</div>
-                        <div class="text-sm text-gray-600">
-                            {{ $related->race_number }}. Koşu -
-                            {{ $related->race_time ? \Carbon\Carbon::parse($related->race_time)->format('H:i') : '-' }}
-                        </div>
-                    </a>
-                @endforeach
+        @if(count($relatedPredictions) > 0)
+            <div class="border-t border-gray-200 pt-8 mt-12">
+                <h3 class="text-xl font-bold text-gray-800 mb-6">Bu Günün Diğer Yarışları</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    @foreach($relatedPredictions as $related)
+                        <a href="{{ route('predictions.show', $related) }}"
+                           class="group block bg-white rounded-lg p-4 border border-gray-100 hover:border-primary hover:shadow-md transition">
+                            <div class="flex justify-between items-center mb-2">
+                                <span
+                                    class="font-bold text-secondary group-hover:text-primary transition">{{ $related->hippodrome->name }}</span>
+                                <span
+                                    class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($related->race_time)->format('H:i') }}</span>
+                            </div>
+                            <div class="text-sm text-gray-600">
+                                {{ $related->race_number }}. Koşu
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
             </div>
-        </div>
+        @endif
     </div>
 @endsection

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -12,6 +14,7 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
+use Throwable;
 
 class NewPasswordController extends Controller
 {
@@ -25,8 +28,6 @@ class NewPasswordController extends Controller
 
     /**
      * Handle an incoming new password request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
@@ -35,32 +36,36 @@ class NewPasswordController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
+
         try {
-            // Here we will attempt to reset the user's password. If it is successful we
-            // will update the password on an actual user model and persist it to the
-            // database. Otherwise we will parse the error and return the response.
+            // Laravel'in yerleşik şifre sıfırlama servisini kullanıyoruz.
             $status = Password::reset(
                 $request->only('email', 'password', 'password_confirmation', 'token'),
-                function (User $user) use ($request) {
+                function (User $user, string $password) {
                     $user->forceFill([
-                        'password' => Hash::make($request->password),
-                        'remember_token' => Str::random(60),
+                        'password' => Hash::make($password),
+                        'remember_token' => Str::random(60), // Güvenlik: Eski oturumları geçersiz kıl
                     ])->save();
 
                     event(new PasswordReset($user));
                 }
             );
 
-            // If the password was successfully reset, we will redirect the user back to
-            // the application's home authenticated view. If there is an error we can
-            // redirect them back to where they came from with their error message.
-            return $status == Password::PASSWORD_RESET
-                        ? redirect()->route('login')->with('status', __($status))
-                        : back()->withInput($request->only('email'))
-                            ->withErrors(['email' => __($status)]);
-        } catch (\Throwable $e) {
+            // İşlem Sonucu Kontrolü
+            if ($status === Password::PASSWORD_RESET) {
+                // Başarılı: Giriş sayfasına yönlendir
+                return redirect()->route('login')->with('status', __($status));
+            }
+
+            // Başarısız: Hata mesajıyla geri dön (Örn: Geçersiz token)
+            return back()
+                ->withInput($request->only('email'))
+                ->withErrors(['email' => __($status)]);
+
+        } catch (Throwable $e) {
             \Log::error('NewPasswordController::store error: ' . $e->getMessage(), ['exception' => $e]);
-            return back()->with('error', 'Şifre sıfırlama işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+
+            return back()->with('error', 'Şifre sıfırlama işlemi sırasında beklenmeyen bir hata oluştu.');
         }
     }
 }

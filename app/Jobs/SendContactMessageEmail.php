@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
 use App\Models\ContactMessage;
@@ -9,12 +11,24 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendContactMessageEmail implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public ContactMessage $messageModel;
+
+    /**
+     * Job kaç kez denensin? (Hata alırsa)
+     */
+    public int $tries = 3;
+
+    /**
+     * Tekrar denemeden önce kaç saniye beklesin?
+     */
+    public int $backoff = 60;
 
     /**
      * Create a new job instance.
@@ -29,15 +43,35 @@ class SendContactMessageEmail implements ShouldQueue
      */
     public function handle(): void
     {
-        $body = "Yeni iletişim formu mesajı:\n\n";
-        $body .= "İsim: " . $this->messageModel->name . "\n";
-        $body .= "E-posta: " . $this->messageModel->email . "\n\n";
-        $body .= "Mesaj:\n" . $this->messageModel->message . "\n";
+        try {
+            // E-posta içeriği
+            $body = sprintf(
+                "Yeni iletişim formu mesajı:\n\nİsim: %s\nE-posta: %s\n\nMesaj:\n%s",
+                $this->messageModel->name,
+                $this->messageModel->email,
+                $this->messageModel->message
+            );
 
-        Mail::raw($body, function ($message) {
-            $message->to(config('mail.from.address'))
-                ->subject('Yeni İletişim Formu Mesajı')
-                ->replyTo($this->messageModel->email, $this->messageModel->name);
-        });
+            // Yöneticiye (Config'den gelen mail) gönder
+            Mail::raw($body, function ($message) {
+                $to = config('mail.from.address');
+
+                if (!$to) {
+                    throw new \Exception('Admin mail adresi (MAIL_FROM_ADDRESS) ayarlanmamış.');
+                }
+
+                $message->to($to)
+                    ->subject('Yeni İletişim Formu Mesajı: ' . $this->messageModel->name)
+                    ->replyTo($this->messageModel->email, $this->messageModel->name);
+            });
+
+            Log::info("İletişim mesajı maili gönderildi. ID: " . $this->messageModel->id);
+
+        } catch (Throwable $e) {
+            Log::error("İletişim maili gönderilemedi. Hata: " . $e->getMessage());
+
+            // Hatayı tekrar fırlat ki Queue worker tekrar denesin (tries > 1 ise)
+            throw $e;
+        }
     }
 }

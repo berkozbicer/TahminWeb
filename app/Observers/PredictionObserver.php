@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Observers;
 
 use App\Models\Prediction;
@@ -20,11 +22,11 @@ class PredictionObserver
      */
     public function updated(Prediction $prediction): void
     {
-        // Sadece status veya result değiştiğinde cache'i temizle
-        if ($prediction->isDirty(['status', 'prediction_result'])) {
+        // updated olayı tetiklendiğinde veritabanına yazılmıştır.
+        // isDirty yerine wasChanged kullanmak daha sağlıklıdır.
+        if ($prediction->wasChanged(['status', 'prediction_result'])) {
             $this->clearCache();
         }
-        $prediction->wasChanged(['status', 'prediction_result']);
     }
 
     /**
@@ -40,9 +42,11 @@ class PredictionObserver
      */
     private function clearCache(): void
     {
+        // İstatistikler değişeceği için bu cacheleri siliyoruz
         Cache::forget('stats.total_predictions');
         Cache::forget('stats.won_predictions');
+
+        // Eğer günlük tahminleri cacheliyorsan onu da burada silmelisin
+        // Örn: Cache::forget('predictions.today');
     }
 }
-
-

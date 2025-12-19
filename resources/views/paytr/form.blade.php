@@ -2,26 +2,67 @@
 <html lang="tr">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Ödeme Yönlendiriliyor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ödeme Başlatılıyor | Hipodrom Casusu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border-top-color: #DABE71; /* Primary Color */
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
 </head>
-<body>
-    <p>Ödemeniz güvenli ödeme sayfasına yönlendiriliyor. Eğer otomatik olarak yönlendirilmezseniz, "Ödemeye Devam Et" butonuna tıklayın.</p>
+<body class="bg-gray-100 h-screen flex flex-col items-center justify-center">
+
+<div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full text-center">
+    <div class="mb-6 flex justify-center">
+        <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Hipodrom Casusu" class="h-16 w-auto">
+    </div>
+
+    <div class="flex justify-center mb-4">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+    </div>
+
+    <h2 class="text-xl font-bold text-gray-800 mb-2">Güvenli Ödeme Sayfasına Yönlendiriliyorsunuz</h2>
+    <p class="text-gray-500 text-sm mb-4">Lütfen bekleyiniz, PayTR altyapısına bağlanılıyor...</p>
 
     <form id="paytr_form" method="post" action="https://www.paytr.com/odeme/guvenli">
         <input type="hidden" name="merchant_id" value="{{ $merchant_id }}">
         <input type="hidden" name="token" value="{{ $token }}">
+
         <noscript>
-            <button type="submit">Ödemeye Devam Et</button>
+            <div class="mt-4 p-4 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 text-sm">
+                Tarayıcınızda JavaScript kapalı görünüyor. Devam etmek için aşağıdaki butona tıklayın.
+            </div>
+            <button type="submit"
+                    class="mt-4 w-full bg-[#4C6E4E] text-white font-bold py-2 px-4 rounded hover:bg-green-800 transition">
+                Ödemeye Manuel Devam Et
+            </button>
         </noscript>
     </form>
+</div>
 
-    <script>
-        try {
+<div class="mt-8 text-gray-400 text-xs">
+    &copy; {{ date('Y') }} Hipodrom Casusu & PayTR
+</div>
+
+<script>
+    // Sayfa yüklendiği an formu otomatik gönder
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(function () {
             document.getElementById('paytr_form').submit();
-        } catch (e) {
-            console.error(e);
-        }
-    </script>
+        }, 500); // 0.5 saniye bekletip gönder (Logoyu görsünler, güven hissi versin)
+    });
+</script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -24,7 +26,8 @@ class ConfirmablePasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        if (! Auth::guard('web')->validate([
+        // Şifre doğrulama işlemi
+        if (!Auth::guard('web')->validate([
             'email' => $request->user()->email,
             'password' => $request->password,
         ])) {
@@ -33,8 +36,17 @@ class ConfirmablePasswordController extends Controller
             ]);
         }
 
+        // Oturuma "şifre doğrulandı" damgasını vur
         $request->session()->put('auth.password_confirmed_at', time());
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // 🔥 AKILLI YÖNLENDİRME (FALLBACK):
+        // Kullanıcı bir sayfaya gitmek isterken şifre sorulduysa oraya (intended) döner.
+        // Amaçsızca bu sayfaya geldiyse; Admin ise '/admin', değilse 'dashboard'a gider.
+
+        $fallbackUrl = $request->user()->isAdmin()
+            ? '/admin'
+            : route('dashboard', absolute: false);
+
+        return redirect()->intended($fallbackUrl);
     }
 }

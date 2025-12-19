@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Observers;
 
 use App\Models\Hippodrome;
@@ -20,7 +22,10 @@ class HippodromeObserver
      */
     public function updated(Hippodrome $hippodrome): void
     {
-        $this->clearCache();
+        // Sadece isim veya şehir değişirse cache temizle
+        if ($hippodrome->wasChanged(['name', 'city', 'is_active'])) {
+            $this->clearCache();
+        }
     }
 
     /**
@@ -39,5 +44,3 @@ class HippodromeObserver
         Cache::forget('hippodromes.active');
     }
 }
-
-

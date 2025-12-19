@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -28,19 +30,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        // ✅ Son giriş zamanını kaydet
-        try {
-            $request->user()->update([
-                'last_login_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            // Log but don't fail login
-            \Log::warning('Failed to update last_login_at', [
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
-            ]);
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        // Son giriş zamanını güncelle (Hata olsa bile girişi engelleme)
+        $this->updateLastLogin($user);
+
+        // 🔥 YÖNLENDİRME MANTIĞI:
+        // Eğer giren kişiyse Admin ise direkt Filament Paneline gitsin.
+        if ($user->isAdmin()) {
+            return redirect()->intended('/admin');
         }
 
+        // Değilse Kullanıcı Paneline gitsin
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
@@ -56,5 +58,22 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * Son giriş tarihini güvenli bir şekilde günceller.
+     */
+    private function updateLastLogin($user): void
+    {
+        try {
+            // 'updated_at' sütununu değiştirmeden sadece login tarihini güncelle
+            // 'saveQuietly' kullanarak Observer'ları tetiklemeyi önleriz (Performans)
+            $user->forceFill([
+                'last_login_at' => now(),
+            ])->saveQuietly();
+        } catch (\Throwable $e) {
+            // Logla ama kullanıcı akışını bozma
+            \Log::warning('Login timestamp update failed', ['id' => $user->id]);
+        }
     }
 }

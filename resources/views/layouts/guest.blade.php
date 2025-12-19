@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'At Yarışları Tahmin') }}</title>
+    <title>{{ config('app.name', 'Hipodrom Casusu') }}</title>
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet"/>
@@ -15,15 +15,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="font-sans text-gray-900 antialiased bg-gray-100">
-<div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0">
+<div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-[#4C6E4E]">
     <div>
-        <a href="/" class="flex flex-col items-center">
-            <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Hipodrom Casusu" class="h-16 w-auto">
+        <a href="/">
+            <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Hipodrom Casusu"
+                 class="h-24 w-auto drop-shadow-lg">
         </a>
     </div>
 
-    <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
+    <div
+        class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-2xl overflow-hidden sm:rounded-lg border-t-4 border-[#DABE71]">
         {{ $slot }}
+    </div>
+
+    <div class="mt-4 text-white text-sm opacity-70">
+        &copy; {{ date('Y') }} Hipodrom Casusu
     </div>
 </div>
 </body>

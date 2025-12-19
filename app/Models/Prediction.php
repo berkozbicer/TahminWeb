@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,6 +12,7 @@ class Prediction extends Model
 {
     use HasFactory;
 
+    // Constants
     public const ACCESS_STANDARD = 'standard';
     public const ACCESS_PREMIUM = 'premium';
 
@@ -46,54 +49,31 @@ class Prediction extends Model
         'published_at' => 'datetime',
     ];
 
-    /**
-     * Hipodrom ilişkisi
-     */
     public function hippodrome(): BelongsTo
     {
         return $this->belongsTo(Hippodrome::class);
     }
 
-    /**
-     * Tahmini oluşturan kullanıcı (admin)
-     */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /**
-     * Scope: yayında olan tahminler
-     */
     public function scopePublished($query)
     {
         return $query->where('status', self::STATUS_PUBLISHED);
     }
 
-    /**
-     * Scope: belirli tarih için
-     */
     public function scopeForDate($query, $date)
     {
         return $query->whereDate('race_date', $date);
     }
 
-    /**
-     * Scope: belirli hipodrom için
-     */
     public function scopeForHippodrome($query, int $hippodromeId)
     {
         return $query->where('hippodrome_id', $hippodromeId);
     }
 
-    /**
-     * Scope: kullanıcının abonelik seviyesine göre erişilebilir tahminler
-     *
-     * $userLevel: null | 'standard' | 'premium'
-     * - premium: her şeye erişir
-     * - standard: sadece access_level = 'standard'
-     * - null/diğer: hiçbir şey
-     */
     public function scopeAccessibleForLevel($query, ?string $userLevel)
     {
         if ($userLevel === self::ACCESS_PREMIUM) {
@@ -104,29 +84,20 @@ class Prediction extends Model
             return $query->where('access_level', self::ACCESS_STANDARD);
         }
 
-        // Abonelik yoksa boş döndür
+        // Abonelik yoksa hiçbir şey döndürme
         return $query->whereRaw('1 = 0');
     }
 
-    /**
-     * Sadece bugünün tahminleri
-     */
     public function scopeToday($query)
     {
         return $query->whereDate('race_date', today());
     }
 
-    /**
-     * Bu tahmin sadece premium mu?
-     */
     public function isPremiumOnly(): bool
     {
         return $this->access_level === self::ACCESS_PREMIUM;
     }
 
-    /**
-     * Sonuç belli mi?
-     */
     public function isSettled(): bool
     {
         return $this->prediction_result !== self::RESULT_PENDING;

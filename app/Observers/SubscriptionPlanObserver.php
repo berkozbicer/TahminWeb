@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Observers;
 
 use App\Models\SubscriptionPlan;
@@ -32,6 +34,14 @@ class SubscriptionPlanObserver
     }
 
     /**
+     * Handle the SubscriptionPlan "restored" event.
+     */
+    public function restored(SubscriptionPlan $subscriptionPlan): void
+    {
+        $this->clearCache();
+    }
+
+    /**
      * Clear related cache
      */
     private function clearCache(): void
@@ -39,5 +49,3 @@ class SubscriptionPlanObserver
         Cache::forget('subscription_plans.active');
     }
 }
-
-

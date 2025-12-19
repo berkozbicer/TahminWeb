@@ -1,60 +1,46 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-use App\Enums\SubscriptionStatus;
-use App\Models\PaymentLog;
-use App\Models\Subscription;
+use App\Http\Requests\Subscription\StoreSubscriptionRequest;
 use App\Models\SubscriptionPlan;
+use App\Repositories\SubscriptionPlanRepository;
+use App\Services\SubscriptionService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
+use Throwable;
 
 class SubscriptionController extends Controller
 {
-    /**
-     * /abonelik  -> paketlerin genel listesi (misafir + üye)
-     */
-    public function index()
+    public function __construct(
+        protected SubscriptionPlanRepository $planRepository,
+        protected SubscriptionService        $subscriptionService
+    )
     {
-        // Planlar cache ile optimize edildi
-        $plans = cache()->remember('subscription_plans.active', 3600, function () {
-            return SubscriptionPlan::active()
-                ->orderBy('price')
-                ->get();
-        });
-
-        $user = Auth::user();
-
-        // DÜZELTME 1: () kaldırıldı. Artık model verisi gelir.
-        $activeSubscription = $user?->activeSubscription;
-
-        return view('subscriptions.index', compact(
-            'plans',
-            'activeSubscription',
-            'user'
-        ));
     }
 
-    /**
-     * /abonelik/yukselt  -> sadece giriş yapmış kullanıcı
-     */
-    public function upgrade()
+    public function index(): View
+    {
+        $plans = $this->planRepository->getActivePlans();
+        $user = Auth::user();
+        $activeSubscription = $user?->activeSubscription;
+
+        return view('subscriptions.index', compact('plans', 'activeSubscription', 'user'));
+    }
+
+    public function upgrade(): View|RedirectResponse
     {
         $user = Auth::user();
 
         if (!$user) {
             return redirect()->route('login')
-                ->with('error', 'Abonelik yükseltmek için önce giriş yapmalısınız.');
+                ->with('error', 'Giriş yapmalısınız.');
         }
 
-        // Planlar cache ile optimize edildi
-        $plans = cache()->remember('subscription_plans.active', 3600, function () {
-            return SubscriptionPlan::active()
-                ->orderBy('price')
-                ->get();
-        });
-
+        $plans = $this->planRepository->getActivePlans();
         $activeSubscription = $user->activeSubscription;
         $currentLevel = $user->getSubscriptionLevel();
 
@@ -66,115 +52,40 @@ class SubscriptionController extends Controller
         ));
     }
 
-    /**
-     * /abonelik/{plan}/abone-ol  -> "test" ödeme ile abonelik oluştur
-     */
-    public function subscribe(Request $request, SubscriptionPlan $plan): RedirectResponse
+    public function subscribe(StoreSubscriptionRequest $request, SubscriptionPlan $plan): RedirectResponse
     {
         try {
+            /** @var \App\Models\User $user */
             $user = $request->user();
 
-            if (!$user) {
-                return redirect()->route('login')
-                    ->with('error', 'Abonelik satın almak için giriş yapmalısınız.');
-            }
-
-            // E-posta doğrulaması kontrolü
-            if (!$user->hasVerifiedEmail()) {
-                return redirect()->route('verification.notice')
-                    ->with('error', 'Abonelik satın almak için önce e-posta adresinizi doğrulamalısınız.');
-            }
-
-            // Plan aktif mi kontrolü
-            if (!$plan->is_active) {
-                return back()->with('error', 'Bu plan şu anda aktif değil.');
-            }
-
-            $current = $user->activeSubscription;
-
-            if ($current && $current->subscription_plan_id === $plan->id && $current->isActive()) {
-                return back()->with('info', 'Zaten bu pakete aktif bir aboneliğiniz bulunuyor.');
-            }
-
-            if ($current && $current->isActive()) {
-                $current->markAsCancelled();
-            }
-
-            if (config('app.env') === 'production') {
-                \Log::warning('SubscriptionController::subscribe called in production - should use PaymentController', [
-                    'user_id' => $user->id,
-                    'plan_id' => $plan->id,
-                ]);
-                return redirect()->route('subscriptions.index')
-                    ->with('error', 'Lütfen ödeme sayfasından devam edin.');
-            }
-
-            $subscription = Subscription::create([
-                'user_id' => $user->id,
-                'subscription_plan_id' => $plan->id,
-                'status' => SubscriptionStatus::STATUS_ACTIVE,
-                'started_at' => now(),
-                'expires_at' => now()->addDays($plan->duration_days ?? 30),
-            ]);
-            (new Subscription())->id;
-
-            PaymentLog::create([
-                'user_id' => $user->id,
-                'subscription_id' => $subscription->id,
-                'transaction_id' => 'TEST-' . uniqid(),
-                'amount' => $plan->price,
-                'status' => PaymentLog::STATUS_COMPLETED,
-                'payment_method' => 'test',
-                'payment_data' => [
-                    'note' => 'Test ödeme - gerçek PayTR entegrasyonu henüz aktif değil.',
-                ],
-            ]);
+            $this->subscriptionService->subscribe($user, $plan);
 
             return redirect()->route('dashboard')
-                ->with('status', 'Aboneliğiniz başarıyla oluşturuldu. İyi şanslar!');
-        } catch (\Throwable $e) {
+                ->with('status', 'Aboneliğiniz başarıyla oluşturuldu.');
+
+        } catch (Throwable $e) {
             report($e);
-            return redirect()->back()->withInput()->with('error', 'Abonelik işlenirken hata oluştu.');
+            return back()->with('error', $e->getMessage());
         }
     }
 
-    /**
-     * /abonelik/iptal  -> aktif aboneliği iptal et
-     */
-    public function cancel(Request $request): RedirectResponse
+    public function cancel(): RedirectResponse
     {
         try {
-            $user = $request->user();
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
 
             if (!$user) {
-                return redirect()->route('login')
-                    ->with('error', 'Önce giriş yapmalısınız.');
+                return redirect()->route('login');
             }
 
-            $subscription = $user->activeSubscription;
-
-            if (!$subscription) {
-                return back()->with('error', 'Aktif bir aboneliğiniz bulunmuyor.');
-            }
-
-            $subscription->markAsCancelled();
-
-            PaymentLog::create([
-                'user_id' => $user->id,
-                'subscription_id' => $subscription->id,
-                'transaction_id' => 'CANCEL-' . uniqid(),
-                'amount' => 0,
-                'status' => PaymentLog::STATUS_REFUNDED,
-                'payment_method' => 'manual',
-                'payment_data' => [
-                    'note' => 'Kullanıcı tarafından abonelik iptal edildi.',
-                ],
-            ]);
+            $this->subscriptionService->cancel($user);
 
             return back()->with('status', 'Aboneliğiniz iptal edildi.');
-        } catch (\Throwable $e) {
+
+        } catch (Throwable $e) {
             report($e);
-            return redirect()->back()->with('error', 'Abonelik iptali sırasında bir hata oluştu.');
+            return back()->with('error', $e->getMessage());
         }
     }
 }

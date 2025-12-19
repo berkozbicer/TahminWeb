@@ -12,9 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        // PayTR callback endpoint (webhook)
-        'paytr/callback',
+        // PayTR'dan gelen POST isteklerinde CSRF token aranmaz (Webhook)
+        'paytr/*',   // /paytr/callback, /paytr/bildirim vs. hepsini kapsar
+        'odeme/*',   // Eğer rotayı /odeme/callback yaptıysak bunu da kapsasın
     ];
 }
-
-

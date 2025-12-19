@@ -1,14 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
@@ -33,25 +36,34 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'password' => 'hashed',
     ];
 
-    // Relations
-    public function subscriptions()
+    public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
     }
 
+    // Kullanıcının en son oluşturulmuş AKTİF aboneliği
     public function activeSubscription(): HasOne
     {
         return $this->hasOne(Subscription::class)
-            ->where('status', 'active')
-            ->where('expires_at', '>', now());
+            ->where('status', Subscription::STATUS_ACTIVE) // Sabit kullanımı
+            ->where('expires_at', '>', now())
+            ->latestOfMany();
     }
 
-    public function paymentLogs()
+    public function paymentLogs(): HasMany
     {
         return $this->hasMany(PaymentLog::class);
     }
 
-    // Helper Methods
+    public function hasActiveSubscriptionTo(int $planId): bool
+    {
+        return $this->subscriptions()
+            ->where('subscription_plan_id', $planId)
+            ->where('status', Subscription::STATUS_ACTIVE)
+            ->where('expires_at', '>', now())
+            ->exists();
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -91,9 +103,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return false;
     }
 
-    /**
-     * Filament panel access check. Only users with `role === 'admin'` can access.
-     */
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->isAdmin();
