@@ -95,11 +95,13 @@
                             @auth
                                 @if($isActive)
                                     <button
-                                        class="w-full bg-green-100 text-green-700 font-bold py-4 px-4 rounded-xl border border-green-200 cursor-default flex justify-center items-center gap-2">
+                                        class="w-full bg-green-100 text-green-700 font-bold py-4 px-4 rounded-xl border border-green-200 cursor-default flex justify-center items-center gap-2"
+                                        disabled>
                                         <i class="fas fa-check-circle"></i> <span>MEVCUT PAKETİNİZ</span>
                                     </button>
                                 @else
-                                    <form action="{{ route('subscriptions.upgrade', $plan) }}" method="POST">
+                                    {{-- FORM ACTION GÜNCELLENDİ: ARTIK DOĞRU ROTAYA GİDİYOR --}}
+                                    <form action="{{ route('subscriptions.payment.init', $plan) }}" method="POST">
                                         @csrf
                                         <button type="submit"
                                                 class="w-full bg-secondary hover:bg-green-800 text-white font-bold py-4 px-4 rounded-xl shadow-lg transition transform hover:-translate-y-1 flex justify-center items-center gap-2">

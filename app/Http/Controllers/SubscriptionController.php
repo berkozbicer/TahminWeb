@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Subscription\StoreSubscriptionRequest;
 use App\Models\SubscriptionPlan;
 use App\Repositories\SubscriptionPlanRepository;
-use App\Services\SubscriptionService;
-use Illuminate\Http\RedirectResponse;
+use App\Services\PaymentService;
+
+// EKLENDİ
+use Illuminate\Http\Request;
+
+// EKLENDİ
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Throwable;
@@ -17,7 +20,7 @@ class SubscriptionController extends Controller
 {
     public function __construct(
         protected SubscriptionPlanRepository $planRepository,
-        protected SubscriptionService        $subscriptionService
+        protected PaymentService             $paymentService // EKLENDİ: Ödeme servisini buraya enjekte ettik
     )
     {
     }
@@ -31,61 +34,35 @@ class SubscriptionController extends Controller
         return view('subscriptions.index', compact('plans', 'activeSubscription', 'user'));
     }
 
-    public function upgrade(): View|RedirectResponse
-    {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect()->route('login')
-                ->with('error', 'Giriş yapmalısınız.');
-        }
-
-        $plans = $this->planRepository->getActivePlans();
-        $activeSubscription = $user->activeSubscription;
-        $currentLevel = $user->getSubscriptionLevel();
-
-        return view('subscriptions.upgrade', compact(
-            'plans',
-            'activeSubscription',
-            'currentLevel',
-            'user'
-        ));
-    }
-
-    public function subscribe(StoreSubscriptionRequest $request, SubscriptionPlan $plan): RedirectResponse
+    /**
+     * BU METOD ÖDEME SÜRECİNİ BAŞLATIR.
+     * Direkt abone yapmaz, PayTR'dan token alır ve loading sayfasına atar.
+     */
+    public function initiatePayment(Request $request, SubscriptionPlan $plan)
     {
         try {
-            /** @var \App\Models\User $user */
             $user = $request->user();
 
-            $this->subscriptionService->subscribe($user, $plan);
-
-            return redirect()->route('dashboard')
-                ->with('status', 'Aboneliğiniz başarıyla oluşturuldu.');
-
-        } catch (Throwable $e) {
-            report($e);
-            return back()->with('error', $e->getMessage());
-        }
-    }
-
-    public function cancel(): RedirectResponse
-    {
-        try {
-            /** @var \App\Models\User $user */
-            $user = Auth::user();
-
-            if (!$user) {
-                return redirect()->route('login');
+            // 1. Kullanıcının zaten bu paketi var mı?
+            if ($user->hasActiveSubscriptionTo($plan->id)) {
+                return back()->with('error', 'Bu pakete zaten aktif bir aboneliğiniz var.');
             }
 
-            $this->subscriptionService->cancel($user);
+            // 2. PayTR Token Alma İşlemi (PaymentService üzerinden)
+            // Bu metod PaymentLog tablosuna 'pending' kaydı atar.
+            $paytrData = $this->paymentService->initializePaytr($user, $plan, $request->ip());
 
-            return back()->with('status', 'Aboneliğiniz iptal edildi.');
+            // 3. Token başarıyla alındıysa, iFrame formunu içeren view'a gönder
+            return view('subscriptions.payment', [
+                'token' => $paytrData['token'],
+                'merchant_id' => $paytrData['merchant_id'],
+                // View'da kullanmak istersen diye diğer dataları da geçebilirsin
+            ]);
 
         } catch (Throwable $e) {
+            // Hata olursa logla ve geri dön
             report($e);
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', 'Ödeme başlatılamadı: ' . $e->getMessage());
         }
     }
 }

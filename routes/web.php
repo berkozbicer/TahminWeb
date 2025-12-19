@@ -10,31 +10,25 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes - FİNAL VE TEMİZLENMİŞ VERSİYON
+| Web Routes - FİNAL VE DÜZELTİLMİŞ
 |--------------------------------------------------------------------------
 */
 
-// --- 1. GENEL SAYFALAR (Public) ---
-
-// Ana Sayfa
+// --- 1. GENEL SAYFALAR ---
 Route::get('/', function () {
-    // İstatistik önbelleği (Performans için)
     $stats = \Illuminate\Support\Facades\Cache::remember('home_stats', 3600, function () {
         return [
             'successRate' => 85,
             'totalPredictions' => \App\Models\Prediction::count(),
         ];
     });
-    // DÜZELTME: Standart dosya ismi 'welcome' olduğu için burayı güncelledim.
     return view('home', $stats);
 })->name('home');
 
-// Statik Sayfalar
 Route::view('/hakkimizda', 'about')->name('about');
 Route::view('/gizlilik-politikasi', 'privacy')->name('privacy');
 Route::view('/kullanim-sartlari', 'terms')->name('terms');
 
-// İletişim
 Route::view('/iletisim', 'contact')->name('contact');
 Route::post('/iletisim', function (Request $request, ContactService $contactService) {
     $validated = $request->validate([
@@ -42,15 +36,12 @@ Route::post('/iletisim', function (Request $request, ContactService $contactServ
         'email' => 'required|email|max:255',
         'message' => 'required|string|max:1000',
     ]);
-
     $contactService->storeMessage($validated, $request->ip(), $request->userAgent());
-
     return back()->with('success', 'Mesajınız başarıyla gönderildi.');
 })->name('contact.submit')->middleware('throttle:5,1');
 
 
 // --- 2. KULLANICI PANELİ ---
-
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/panel', function () {
         return view('dashboard', [
@@ -66,7 +57,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
 // --- 3. TAHMİN SİSTEMİ ---
-
 Route::group(['prefix' => 'tahminler', 'as' => 'predictions.'], function () {
     Route::get('/', [PredictionController::class, 'index'])->name('index');
     Route::get('/bugun', [PredictionController::class, 'today'])->middleware('auth')->name('today');
@@ -74,8 +64,7 @@ Route::group(['prefix' => 'tahminler', 'as' => 'predictions.'], function () {
 });
 
 
-// --- 4. ABONELİK VE ÖDEME (KRİTİK DÜZELTME YAPILDI) ---
-
+// --- 4. ABONELİK VE ÖDEME (KRİTİK DÜZELTME) ---
 Route::prefix('abonelik')->name('subscriptions.')->group(function () {
 
     // Paketleri Listele
@@ -83,18 +72,14 @@ Route::prefix('abonelik')->name('subscriptions.')->group(function () {
 
     // Sadece Üyeler İçin İşlemler
     Route::middleware('auth')->group(function () {
-
-        // Ödeme Başlat (PayTR Token Alır ve View Döndürür)
-        // SubscriptionController::upgrade metodu PayTR servisini çağırır.
-        // DİKKAT: Direkt abone yapan kod buradan tamamen silindi.
-        Route::match(['get', 'post'], '/odeme/{plan}', [SubscriptionController::class, 'upgrade'])
-            ->name('upgrade');
+        // Bu rota artık direkt abone yapmaz. Controller'daki 'initiatePayment' metoduna gider.
+        Route::post('/odeme-baslat/{plan}', [SubscriptionController::class, 'initiatePayment'])
+            ->name('payment.init');
     });
 });
 
 
-// --- 5. PAYTR CALLBACK (Webhook) ---
-
+// --- 5. PAYTR CALLBACK ---
 Route::post('/paytr/callback', function (Request $request, PaymentService $paymentService) {
     try {
         $paymentService->handleCallback($request->all());
