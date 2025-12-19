@@ -200,41 +200,85 @@
 <footer class="bg-secondary text-white mt-16 border-t-4 border-primary">
     <div class="max-w-7xl mx-auto px-4 py-12">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div class="col-span-1 md:col-span-2">
+
+            <div class="col-span-1">
                 <div class="flex items-center gap-3 mb-4">
                     <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Logo" class="h-10">
-                    <span class="text-2xl font-bold text-primary tracking-wider">HİPODROM CASUSU</span>
+                    <span class="text-xl font-bold text-primary tracking-wider">HİPODROM</span>
                 </div>
-                <p class="text-gray-300 text-sm leading-relaxed max-w-sm">
-                    Yapay zeka destekli analizler, uzman yorumları ve detaylı istatistiklerle at yarışlarında kazanmaya
-                    bir adım daha yakın olun.
+                <p class="text-gray-300 text-sm leading-relaxed">
+                     Uzman analizler ve yorumları ile kazanmaya bir adım daha yakın olun.
                 </p>
+                <div class="mt-4 flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitter"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-instagram"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition"><i class="fab fa-youtube"></i></a>
+                </div>
             </div>
 
             <div>
                 <h3 class="font-bold text-lg mb-4 text-primary">Hızlı Erişim</h3>
                 <ul class="space-y-2 text-gray-300 text-sm">
-                    <li><a href="{{ route('home') }}"
+                    <li>
+                        <a href="{{ route('home') }}"
                            class="hover:text-white hover:translate-x-1 transition-transform inline-block">Ana Sayfa</a>
                     </li>
-                    <li><a href="{{ route('predictions.index') }}"
+                    <li>
+                        <a href="{{ route('predictions.index') }}"
                            class="hover:text-white hover:translate-x-1 transition-transform inline-block">Tahminler</a>
                     </li>
-                    <li><a href="{{ route('subscriptions.index') }}"
+                    <li>
+                        <a href="{{ route('subscriptions.index') }}"
                            class="hover:text-white hover:translate-x-1 transition-transform inline-block">Premium
-                            Üyelik</a></li>
+                            Üyelik</a>
+                    </li>
                 </ul>
             </div>
 
             <div>
-                <h3 class="font-bold text-lg mb-4 text-primary">İletişim</h3>
-                <ul class="space-y-3 text-gray-300 text-sm">
-                    <li class="flex items-center"><i class="fas fa-envelope mr-3 w-4"></i> destek@hipodromcasusu.com
+                <h3 class="font-bold text-lg mb-4 text-primary">Kurumsal</h3>
+                <ul class="space-y-2 text-gray-300 text-sm">
+                    <li>
+                        <a href="{{ route('about') }}"
+                           class="hover:text-white hover:translate-x-1 transition-transform inline-block">Hakkımızda</a>
                     </li>
-                    <li class="flex items-center"><i class="fas fa-shield-alt mr-3 w-4"></i> Güvenli Ödeme (PayTR)</li>
+                    <li>
+                        <a href="{{ route('privacy') }}"
+                           class="hover:text-white hover:translate-x-1 transition-transform inline-block">Gizlilik
+                            Politikası</a>
+                    </li>
+                    <li>
+                        <a href="{{ route('terms') }}"
+                           class="hover:text-white hover:translate-x-1 transition-transform inline-block">Kullanım
+                            Şartları</a>
+                    </li>
+                    <li>
+                        <a href="{{ route('contact') }}"
+                           class="hover:text-white hover:translate-x-1 transition-transform inline-block">İletişim
+                            Formu</a>
+                    </li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="font-bold text-lg mb-4 text-primary">Bize Ulaşın</h3>
+                <ul class="space-y-3 text-gray-300 text-sm">
+                    <li class="flex items-center">
+                        <i class="fas fa-envelope mr-3 w-4 text-primary"></i>
+                        destek@hipodromcasusu.com
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-map-marker-alt mr-3 w-4 text-primary"></i>
+                        İstanbul, Türkiye
+                    </li>
+                    <li class="flex items-center mt-4">
+                        <i class="fas fa-shield-alt mr-3 w-4 text-green-400"></i>
+                        <span class="text-green-100">PayTR ile Güvenli Ödeme</span>
+                    </li>
                 </ul>
             </div>
         </div>
+
         <div class="border-t border-green-800 mt-10 pt-6 text-center text-gray-400 text-xs">
             <p>&copy; {{ date('Y') }} HİPODROM CASUSU. Tüm hakları saklıdır.</p>
         </div>
