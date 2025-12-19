@@ -14,9 +14,12 @@ class PredictionController extends Controller
      */
     public function index(Request $request)
     {
-        $hippodromes = Hippodrome::active()
-            ->orderBy('name')
-            ->get();
+        // Hipodromlar cache ile optimize edildi
+        $hippodromes = cache()->remember('hippodromes.active', 86400, function () {
+            return Hippodrome::active()
+                ->orderBy('name')
+                ->get();
+        });
 
         // Tarih filtresi (varsayılan: bugün)
         $date = $request->input('date');
@@ -39,7 +42,7 @@ class PredictionController extends Controller
             }
         }
 
-        $query = Prediction::with('hippodrome')
+        $query = Prediction::with(['hippodrome', 'creator'])
             ->published()
             ->forDate($date);
 
@@ -78,7 +81,7 @@ class PredictionController extends Controller
         $user = Auth::user();
         $userLevel = $user?->getSubscriptionLevel();
 
-        $predictions = Prediction::with('hippodrome')
+        $predictions = Prediction::with(['hippodrome', 'creator'])
             ->published()
             ->today()
             ->accessibleForLevel($userLevel)

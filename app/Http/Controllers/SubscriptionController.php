@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SubscriptionStatus;
 use App\Models\PaymentLog;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
@@ -16,9 +17,12 @@ class SubscriptionController extends Controller
      */
     public function index()
     {
-        $plans = SubscriptionPlan::active()
-            ->orderBy('price')
-            ->get();
+        // Planlar cache ile optimize edildi
+        $plans = cache()->remember('subscription_plans.active', 3600, function () {
+            return SubscriptionPlan::active()
+                ->orderBy('price')
+                ->get();
+        });
 
         $user = Auth::user();
 
@@ -44,11 +48,13 @@ class SubscriptionController extends Controller
                 ->with('error', 'Abonelik yükseltmek için önce giriş yapmalısınız.');
         }
 
-        $plans = SubscriptionPlan::active()
-            ->orderBy('price')
-            ->get();
+        // Planlar cache ile optimize edildi
+        $plans = cache()->remember('subscription_plans.active', 3600, function () {
+            return SubscriptionPlan::active()
+                ->orderBy('price')
+                ->get();
+        });
 
-        // DÜZELTME 2: () kaldırıldı.
         $activeSubscription = $user->activeSubscription;
         $currentLevel = $user->getSubscriptionLevel();
 
@@ -73,6 +79,17 @@ class SubscriptionController extends Controller
                     ->with('error', 'Abonelik satın almak için giriş yapmalısınız.');
             }
 
+            // E-posta doğrulaması kontrolü
+            if (!$user->hasVerifiedEmail()) {
+                return redirect()->route('verification.notice')
+                    ->with('error', 'Abonelik satın almak için önce e-posta adresinizi doğrulamalısınız.');
+            }
+
+            // Plan aktif mi kontrolü
+            if (!$plan->is_active) {
+                return back()->with('error', 'Bu plan şu anda aktif değil.');
+            }
+
             $current = $user->activeSubscription;
 
             if ($current && $current->subscription_plan_id === $plan->id && $current->isActive()) {
@@ -83,13 +100,23 @@ class SubscriptionController extends Controller
                 $current->markAsCancelled();
             }
 
+            if (config('app.env') === 'production') {
+                \Log::warning('SubscriptionController::subscribe called in production - should use PaymentController', [
+                    'user_id' => $user->id,
+                    'plan_id' => $plan->id,
+                ]);
+                return redirect()->route('subscriptions.index')
+                    ->with('error', 'Lütfen ödeme sayfasından devam edin.');
+            }
+
             $subscription = Subscription::create([
                 'user_id' => $user->id,
                 'subscription_plan_id' => $plan->id,
-                'status' => Subscription::STATUS_ACTIVE,
+                'status' => SubscriptionStatus::STATUS_ACTIVE,
                 'started_at' => now(),
                 'expires_at' => now()->addDays($plan->duration_days ?? 30),
             ]);
+            (new Subscription())->id;
 
             PaymentLog::create([
                 'user_id' => $user->id,

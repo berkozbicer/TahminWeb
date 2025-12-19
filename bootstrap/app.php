@@ -11,6 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Global middleware - Security headers
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        
         $middleware->alias([
             'subscription' => \App\Http\Middleware\CheckSubscription::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,

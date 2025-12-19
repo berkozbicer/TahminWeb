@@ -1,20 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Enums\SubscriptionStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+
+/**
+ * @property int $id
+ */
 class Subscription extends Model
 {
-    use HasFactory;
-
-    public const STATUS_PENDING = 'pending';
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_EXPIRED = 'expired';
-    public const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
         'user_id',
@@ -29,6 +29,7 @@ class Subscription extends Model
         'started_at' => 'datetime',
         'expires_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'status' => SubscriptionStatus::class, // başka bilgileri engeller.
     ];
 
     /**
@@ -61,7 +62,7 @@ class Subscription extends Model
     public function scopeActive($query)
     {
         return $query
-            ->where('status', self::STATUS_ACTIVE)
+            ->where('status', SubscriptionStatus::STATUS_ACTIVE)
             ->where('expires_at', '>', now());
     }
 
@@ -70,7 +71,7 @@ class Subscription extends Model
      */
     public function isActive(): bool
     {
-        if ($this->status !== self::STATUS_ACTIVE) {
+        if ($this->status != SubscriptionStatus::STATUS_ACTIVE) {
             return false;
         }
 
@@ -90,7 +91,7 @@ class Subscription extends Model
             return null;
         }
 
-        return now()->diffInDays($this->expires_at, false);
+        return now()->diffInDays($this->expires_at);
     }
 
     /**
@@ -98,7 +99,7 @@ class Subscription extends Model
      */
     public function markAsCancelled(): void
     {
-        $this->status = self::STATUS_CANCELLED;
+        $this->status = SubscriptionStatus::STATUS_CANCELLED;
         $this->cancelled_at = now();
         $this->save();
     }

@@ -27,22 +27,41 @@ class PaytrService
     {
         $url = 'https://www.paytr.com/odeme/api/get-token';
 
+        // Validate required fields
+        $required = ['merchant_id', 'user_ip', 'merchant_oid', 'email', 'payment_amount', 'paytr_token', 'user_basket'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                Log::error('PayTR getToken: missing required field', ['field' => $field, 'data_keys' => array_keys($data)]);
+                return ['status' => 'error', 'error' => "Missing required field: {$field}"];
+            }
+        }
+
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1); // ✅ SSL doğrulaması aktif
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2); // ✅ Host doğrulaması
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30); // ✅ Timeout eklendi
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10); // ✅ Connection timeout
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query($data),
+            CURLOPT_SSL_VERIFYPEER => true, // ✅ SSL doğrulaması aktif
+            CURLOPT_SSL_VERIFYHOST => 2, // ✅ Host doğrulaması
+            CURLOPT_TIMEOUT => 30, // ✅ Timeout eklendi
+            CURLOPT_CONNECTTIMEOUT => 10, // ✅ Connection timeout
+            CURLOPT_FOLLOWLOCATION => false, // Güvenlik için
+            CURLOPT_MAXREDIRS => 0, // Güvenlik için
+        ]);
 
         $result = curl_exec($ch);
 
         if (curl_errno($ch)) {
             $err = curl_error($ch);
+            $errno = curl_errno($ch);
             curl_close($ch);
-            Log::error('PayTR cURL error', ['error' => $err, 'data' => $data]);
+            Log::error('PayTR cURL error', [
+                'error' => $err,
+                'errno' => $errno,
+                'url' => $url,
+                'data_keys' => array_keys($data), // Hassas verileri loglamıyoruz
+            ]);
             return ['status' => 'error', 'error' => $err];
         }
 
@@ -50,15 +69,26 @@ class PaytrService
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            Log::error('PayTR HTTP error', ['http_code' => $httpCode, 'response' => $result]);
+            Log::error('PayTR HTTP error', [
+                'http_code' => $httpCode,
+                'response_preview' => substr($result, 0, 200), // İlk 200 karakter
+            ]);
             return ['status' => 'error', 'error' => 'HTTP ' . $httpCode];
         }
 
         $res = json_decode($result, true);
 
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::error('PayTR invalid JSON response', [
+                'json_error' => json_last_error_msg(),
+                'response_preview' => substr($result, 0, 200),
+            ]);
+            return ['status' => 'error', 'error' => 'Invalid JSON response from PayTR'];
+        }
+
         if (!is_array($res)) {
-            Log::error('PayTR invalid JSON response', ['response' => $result]);
-            return ['status' => 'error', 'error' => 'Invalid response from PayTR'];
+            Log::error('PayTR response is not array', ['response' => $res]);
+            return ['status' => 'error', 'error' => 'Invalid response format from PayTR'];
         }
 
         return $res;

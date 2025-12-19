@@ -53,17 +53,16 @@ Route::middleware('auth')->group(function () {
 
 // PayTR Payment Routes
 Route::prefix('paytr')->name('paytr.')->group(function () {
-    // ✅ Initialize payment (auth required)
-    Route::post('/{plan}/initialize', [PaymentController::class, 'initialize'])
-        ->name('initialize')
+    Route::post('/odeme', [PaymentController::class, 'ode'])
+        ->name('odeme')
         ->middleware('auth');
 
-    // ✅ CSRF koruması devre dışı (PayTR webhook için)
-    Route::post('/callback', [PaymentController::class, 'callback'])
+    // CSRF koruması devre dışı (PayTR webhook için)
+    Route::post('/odeme/callback', [PaymentController::class, 'callback'])
         ->name('callback')
         ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
-    // ✅ Simulation (admin only)
+    //Simulation (admin only)
     Route::post('/simulate/{payment}', [PaymentController::class, 'simulate'])
         ->name('simulate')
         ->middleware(['auth', 'admin']);

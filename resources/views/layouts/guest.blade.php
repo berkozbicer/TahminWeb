@@ -18,8 +18,7 @@
 <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0">
     <div>
         <a href="/" class="flex flex-col items-center">
-            <span class="text-4xl">🏇</span>
-            <span class="text-xl font-bold text-red-600 mt-2">AT TAHMİN</span>
+            <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Hipodrom Casusu" class="h-16 w-auto">
         </a>
     </div>
 

@@ -6,7 +6,6 @@ use App\Models\Prediction;
 use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
 class HomeController extends Controller
@@ -20,20 +19,28 @@ class HomeController extends Controller
             ->orderBy('race_time')
             ->get();
 
-        // Basit istatistikler
-        $totalPredictions = Prediction::published()->count();
-        $wonCount = Prediction::published()->where('prediction_result', Prediction::RESULT_WON)->count();
+        // Basit istatistikler (cache ile optimize edildi)
+        $totalPredictions = cache()->remember('stats.total_predictions', 3600, function () {
+            return Prediction::published()->count();
+        });
+        
+        $wonCount = cache()->remember('stats.won_predictions', 3600, function () {
+            return Prediction::published()->where('prediction_result', Prediction::RESULT_WON)->count();
+        });
+        
         $successRate = $totalPredictions > 0
             ? round(($wonCount / $totalPredictions) * 100, 1)
             : 0;
 
-        // Planlar (kartlarda göstermek istersen)
-        $plans = SubscriptionPlan::active()
-            ->orderBy('price')
-            ->get();
+        // Planlar (cache ile optimize edildi)
+        $plans = cache()->remember('subscription_plans.active', 3600, function () {
+            return SubscriptionPlan::active()
+                ->orderBy('price')
+                ->get();
+        });
 
         $user = Auth::user();
-        $activeSubscription = $user?->activeSubscription();
+        $activeSubscription = $user?->activeSubscription;
 
         return view('home', compact(
             'todayPredictions',

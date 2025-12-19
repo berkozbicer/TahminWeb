@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentLog;
 use App\Models\Subscription;
@@ -46,7 +47,7 @@ class PaymentController extends Controller
             // ✅ Zaten aktif abonelik var mı?
             $existingSubscription = $user->subscriptions()
                 ->where('subscription_plan_id', $plan->id)
-                ->where('status', Subscription::STATUS_ACTIVE)
+                ->where('status', SubscriptionStatus::STATUS_ACTIVE)
                 ->where('expires_at', '>', now())
                 ->first();
 
@@ -78,7 +79,8 @@ class PaymentController extends Controller
             $user_basket = base64_encode(json_encode($basket));
 
             // PayTR amount expects kuruş (amount * 100)
-            $payment_amount = (string)round($plan->price * 100);
+            // Minimum tutar kontrolü (PayTR minimum 50 kuruş)
+            $payment_amount = max(50, (string)round($plan->price * 100));
 
             $email = $user->email;
 
@@ -161,7 +163,12 @@ class PaymentController extends Controller
             // verify signature
             $valid = $this->paytr->verifyCallback($payload);
             if (!$valid) {
-                Log::warning('PayTR callback signature invalid', $payload);
+                Log::warning('PayTR callback signature invalid', [
+                    'merchant_oid' => $payload['merchant_oid'] ?? null,
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->header('User-Agent'),
+                ]);
+                // Güvenlik: Geçersiz imza ile işlem yapmıyoruz ama PayTR'ye OK dönüyoruz
                 return response('OK', 200);
             }
 
@@ -198,15 +205,25 @@ class PaymentController extends Controller
                     try {
                         // ✅ Eski aktif abonelikleri iptal et
                         Subscription::where('user_id', $payment->user_id)
-                            ->where('status', Subscription::STATUS_ACTIVE)
-                            ->update(['status' => Subscription::STATUS_CANCELLED, 'cancelled_at' => now()]);
+                            ->where('status', SubscriptionStatus::STATUS_ACTIVE)
+                            ->update(['status' => SubscriptionStatus::STATUS_CANCELLED, 'cancelled_at' => now()]);
 
                         $plan = SubscriptionPlan::find($planId);
+
+                        if (!$plan) {
+                            Log::error('PayTR callback: plan not found', [
+                                'plan_id' => $planId,
+                                'payment_id' => $payment->id,
+                            ]);
+                            $payment->status = PaymentLog::STATUS_FAILED;
+                            $payment->save();
+                            return response('OK', 200);
+                        }
 
                         $subscription = Subscription::create([
                             'user_id' => $payment->user_id,
                             'subscription_plan_id' => $planId,
-                            'status' => Subscription::STATUS_ACTIVE,
+                            'status' => SubscriptionStatus::STATUS_ACTIVE,
                             'started_at' => now(),
                             'expires_at' => now()->addDays($plan->duration_days ?? 30),
                         ]);
@@ -273,15 +290,23 @@ class PaymentController extends Controller
             if ($planId) {
                 // ✅ Eski abonelikleri iptal et
                 Subscription::where('user_id', $payment->user_id)
-                    ->where('status', Subscription::STATUS_ACTIVE)
-                    ->update(['status' => Subscription::STATUS_CANCELLED, 'cancelled_at' => now()]);
+                    ->where('status', SubscriptionStatus::STATUS_ACTIVE)
+                    ->update(['status' => SubscriptionStatus::STATUS_CANCELLED, 'cancelled_at' => now()]);
 
                 $plan = SubscriptionPlan::find($planId);
+
+                if (!$plan) {
+                    Log::error('PaymentController::simulate: plan not found', [
+                        'plan_id' => $planId,
+                        'payment_id' => $payment->id,
+                    ]);
+                    return back()->with('error', 'Plan bulunamadı.');
+                }
 
                 $subscription = Subscription::create([
                     'user_id' => $payment->user_id,
                     'subscription_plan_id' => $planId,
-                    'status' => Subscription::STATUS_ACTIVE,
+                    'status' => SubscriptionStatus::STATUS_ACTIVE,
                     'started_at' => now(),
                     'expires_at' => now()->addDays($plan->duration_days ?? 30),
                 ]);

@@ -8,7 +8,9 @@
                     <h2 class="text-2xl font-bold text-secondary mb-1">Hoş geldin, {{ $user->name }}! 👋</h2>
                     <p class="text-gray-600">At yarışı tahmin panelindesin. Buradan durumunu kontrol edebilirsin.</p>
                 </div>
-                <div class="hidden sm:block text-4xl">🏇</div>
+                <div class="hidden sm:block">
+                    <img src="{{ asset('images/hipodrom_casusu_logo.png') }}" alt="Hipodrom Casusu" class="h-16 w-auto">
+                </div>
             </div>
         </div>
 
